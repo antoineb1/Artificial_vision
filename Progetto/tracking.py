@@ -1,6 +1,8 @@
-import cv2
+import cv2, time
 from ultralytics import YOLO
-from roi import ROI  
+from roi import ROI
+from vilt import ViLTPAR
+from PIL import Image
 
 
 def load_model(model_path):
@@ -12,73 +14,6 @@ def open_video(video_path):
         print(f"Error opening video file: {video_path}")
         exit()
     return cap
-
-# def process_frame(model, cap, rois):
-#     success, frame = cap.read()
-#     if success:
-#         results = model.track(frame, persist=True, classes=0)
-#         # annotated_frame = results[0].plot()
-
-#         centers = calculate_bbox_centers(results)
-#         for center in centers:
-#             print("ENTRA: ",rois.point_in_roi(center))
-
-#         # Print of boxes and roi
-#         annotated_frame = plot_bboxes(results,frame) 
-#         rois.add_roi_to_image(annotated_frame)  # Use the add_roi_to_image method from the imported ROI class
-#         cv2.imshow("YOLOv8 Tracking", annotated_frame)
-#         return True
-#     else:
-#         return False
-
-# def process_frame(model, cap, rois,tracking_data):
-#     success, frame = cap.read()
-#     if success:
-#         results = model.track(frame, persist=True, classes=0)
-#         # annotated_frame = results[0].plot()
-
-#         # Aggiornamento tempo di permanenza nelle roi e numero di passaggi
-#         centers = calculate_bbox_centers(results)
-
-#         update_data(centers,tracking_data,rois)
-
-
-#         # Print of boxes and roi
-#         annotated_frame = plot_bboxes(results,frame) 
-#         rois.add_roi_to_image(annotated_frame)  # Use the add_roi_to_image method from the imported ROI class
-#         cv2.imshow("YOLOv8 Tracking", annotated_frame)
-#         return True
-#     else:
-#         return False        
-
-
-
-# def update_data(centers,tracking_data,rois):
-#     # Per ogni punto vedo se è presente nelle due roi
-#     for center in centers:
-#         is_in_roi1,is_in_roi2 = rois.point_in_rois(center[1],center[2])
-
-#         if is_in_roi1:
-#             update_data(tracking_data,id,"roi1")
-#         elif is_in_roi2:
-#             update_data(tracking_data,id,"roi2")
-
-#     return
-
-# def update_dict(tracking_data,id,roi):
-#     str1 = "_passages"
-#     str2 = "_persistence_time"
-#     if id in tracking_data:
-#         if not tracking_data[id]["flag"]:
-#             tracking_data[id][roi+str1] += 1
-#             tracking_data[id]["flag"] = True
-#         tracking_data[id][roi+str2] += 1
-#     else:
-#         tracking_data[id] = {}
-#         tracking_data[id][roi+str1] = 0
-#         tracking_data[id][roi+str2] = 0
-#         tracking_data[id]["flag"] = False
-#     return
 
 
 
@@ -96,12 +31,29 @@ def process_frame(model, cap, rois, tracking_data):
     - bool: True if the frame is successfully processed, False otherwise.
     """
     success, frame = cap.read()
+    last_crop_time = 0.0
+    vilt = ViLTPAR()
+
     if success:
         results = model.track(frame, persist=True, classes=0)
 
         # Update dwell time in ROIs and number of passages
         centers = calculate_bbox_centers(results)
-        update_data(centers, tracking_data, rois)
+
+        # Run Pedestrian Attribute Recognition
+        current_time = time.time()
+
+        if current_time - last_crop_time >= 0.5: # wait at least 2 seconds
+            cropped_frames = crop_objects(frame, results)
+            last_crop_time = time.time()
+
+            for idx, cropped_frame in enumerate(cropped_frames):
+                vilt.extract_attributes(idx, Image.fromarray(cropped_frame))
+            
+            par_results = vilt.get_results()
+            par_model = vilt.get_model()
+
+        update_data(centers, tracking_data, rois, par_model, par_results)
 
         # Display the annotated frame with bounding boxes and ROIs
         annotated_frame = plot_bboxes(results, frame) 
@@ -111,7 +63,7 @@ def process_frame(model, cap, rois, tracking_data):
     else:
         return False
 
-def update_data(centers, tracking_data, rois):
+def update_data(centers, tracking_data, rois, par_model, par_results):
     """
     Update tracking data based on object positions in ROIs.
 
@@ -138,6 +90,15 @@ def update_data(centers, tracking_data, rois):
                 "roi2_persistence_time": 0,
                 "roi2_flag": False
             }
+
+        # PAR - updating attributes
+        # for attr in par_results:
+        #     for a in attr:
+        #         outputs = par_model(**a[1])
+        #         logits = outputs.logits
+        #         idx = logits.argmax(-1).item()
+        #         tracking_data[obj_id][a[0]] = par_model.config.id2label[idx]
+        #     # print("ID: ", obj_id, "Info:\n", tracking_data[obj_id], "\n")
 
 def update_dict(tracking_data, obj_id, roi):
     """
@@ -235,7 +196,31 @@ def plot_bboxes(results, frame):
 
     return frame
 
+def crop_objects(frame, results):
+    """
+    Utility function which crop the frame in order to obtain just the images of people detected in the scene
 
+    Parameters:
+    - results (ultralytics.YOLO): YOLO results object containing information about detected objects.
+    - frame: current scene frame
+
+    Returns:
+    - list: list of all the cropped images containing detected people
+    """
+    cropped_images = []
+    
+    for result in results:
+        boxes = result.boxes.cpu().numpy()
+        xyxys = boxes.xyxy
+
+        for xyxy in xyxys:
+            x1, y1, x2, y2 = int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])
+
+            # Ritaglia la porzione di immagine corrispondente al bounding box
+            cropped_image = frame[y1:y2, x1:x2].copy()
+            cropped_images.append(cropped_image)
+
+    return cropped_images
 
 
 def main():
@@ -244,16 +229,16 @@ def main():
     model = load_model(model_path)
 
     # Open the video file
-    video_path = "\\Users\\marco\\OneDrive\\Desktop\\Artificial Vision\\Progetto\\trimmed_prova.mp4"
+    video_path = "trimmed_prova.mp4"
     cap = open_video(video_path)
 
     # Create an ROI manager and read ROIs from the JSON file
-    roi_manager = ROI('\\Users\\marco\\OneDrive\\Desktop\\Artificial Vision\\Progetto\\config.txt',video_path)
+    roi_manager = ROI('config.txt',video_path)
 
     tracking_data = {}
 
     # Loop through the video frames
-    while process_frame(model, cap, roi_manager,tracking_data):
+    while process_frame(model, cap, roi_manager, tracking_data):
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
