@@ -18,33 +18,40 @@ class ViLTPAR:
 
         return
 
-    def get_model(self):
-        return self.model
-
     def get_results(self):
         return self.results
 
-    def extract_attributes(self, id, image):
-        # image.save("id" + str(id + 1) + ".jpg")
+    def extract_attributes(self, image):
+
+        res = []
 
         try:
             attributes = [
-                ('gender', self.processor(image, self.gender_question, return_tensors='pt')),
-                ('hat', self.processor(image, self.hat_question, return_tensors='pt')),
-                ('bag', self.processor(image, self.bag_question, return_tensors='pt')),
-                ('upper_color', self.processor(image, self.upper_clothing_question, return_tensors='pt')),
-                ('lower_color', self.processor(image, self.lower_clothing_question, return_tensors='pt'))
+                self.processor(image, self.gender_question, return_tensors='pt'), # gender
+                self.processor(image, self.hat_question, return_tensors='pt'), # hat
+                self.processor(image, self.bag_question, return_tensors='pt'), # bag
+                self.processor(image, self.upper_clothing_question, return_tensors='pt'), # upper color
+                self.processor(image, self.lower_clothing_question, return_tensors='pt') # lower color
             ]
-            self.results.append(attributes)
-        except Exception as e:
-            print("Error occured: ", e)
+            
+            res.append(attributes)
 
-
-    def print_attributes(self):
-            for attr in self.results:
-                for a in attr:
-                    outputs = self.model(**a[1])
+            for attr in res:
+                for i, a in enumerate(attr):
+                    outputs = self.model(**a)
                     logits = outputs.logits
                     idx = logits.argmax(-1).item()
-                    print(a[0], self.model.config.id2label[idx], '\n')
-                print('\n/////////////\n\n')
+
+                    if i == 1 or i == 2:
+                        if str(self.model.config.id2label[idx]).lower() == 'yes':
+                            self.model.config.id2label[idx] = True
+                        else:
+                            self.model.config.id2label[idx] = False
+
+                    self.results.append(self.model.config.id2label[idx])
+
+        except Exception as e:
+            print("Error occured --- ", e)
+
+        return
+        
