@@ -259,7 +259,36 @@ def crop_objects(frame, angles):
     cropped_image = frame[y1:y2, x1:x2].copy()
 
     return cropped_image
+    
+def save_tracking_statistics(tracking_data, output_file):
+    """
+    Save tracking statistics for each object in the tracking data to a JSON file.
 
+    Parameters:
+    - tracking_data: Dictionary containing tracking data.
+    - output_file: The name of the output JSON file.
+    """
+    output_list = []
+
+    for obj_id, data in tracking_data.items():
+        entry = {
+            "id": obj_id,
+            "gender": data.get("gender", "unknown"),
+            "hat": data.get("hat", False),
+            "bag": data.get("bag", False),
+            "upper_color": data.get("upper_color", "unknown"),
+            "lower_color": data.get("lower_color", "unknown"),
+            "roi1_passages": data.get("roi1_passages", 0),
+            "roi1_persistence_time": data.get("roi1_persistence_time", 0) / fps,
+            "roi2_passages": data.get("roi2_passages", 0),
+            "roi2_persistence_time": data.get("roi2_persistence_time", 0) / fps
+        }
+        output_list.append(entry)
+
+    output_data = {"people": output_list}
+
+    with open(output_file, 'w') as json_file:
+        json.dump(output_data, json_file, indent=2)
 
 def main():
     # Load a model
