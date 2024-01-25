@@ -1,32 +1,28 @@
 from transformers import ViltProcessor, ViltForQuestionAnswering
-import requests, os, time
+import requests, os, time, cv2
 from PIL import Image
 
 class ViLTPAR:
 
-    def __init__(self):
-        self.processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
-        self.model = ViltForQuestionAnswering.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
+    def __init__(self, vilt_model):
+        self.processor = ViltProcessor.from_pretrained(vilt_model)
+        self.model = ViltForQuestionAnswering.from_pretrained(vilt_model)
 
         self.gender_question = "What is the gender of the person?"
         self.hat_question = "Is the person wearing a hat?"
-        self.bag_question = "Is the person carrying a bag?"
+        self.bag_question = "Is the person carrying a bag or a backpack?"
         self.upper_clothing_question = "What color is the upper clothing?"
         self.lower_clothing_question = "What color is the lower clothing?"
 
-        self.results = []
-
         return
-
-    def get_results(self):
-        return self.results
 
     def extract_attributes(self, image):
 
-        res = []
+        answers = []
+        feature_list = []
 
         try:
-            attributes = [
+            questions = [
                 self.processor(image, self.gender_question, return_tensors='pt'), # gender
                 self.processor(image, self.hat_question, return_tensors='pt'), # hat
                 self.processor(image, self.bag_question, return_tensors='pt'), # bag
@@ -34,10 +30,10 @@ class ViLTPAR:
                 self.processor(image, self.lower_clothing_question, return_tensors='pt') # lower color
             ]
             
-            res.append(attributes)
+            answers.append(questions)
 
-            for attr in res:
-                for i, a in enumerate(attr):
+            for answer in answers:
+                for i, a in enumerate(answer):
                     outputs = self.model(**a)
                     logits = outputs.logits
                     idx = logits.argmax(-1).item()
@@ -48,10 +44,10 @@ class ViLTPAR:
                         else:
                             self.model.config.id2label[idx] = False
 
-                    self.results.append(self.model.config.id2label[idx])
+                    feature_list.append(self.model.config.id2label[idx])
 
         except Exception as e:
             print("Error occured --- ", e)
 
-        return
+        return feature_list
         

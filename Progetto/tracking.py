@@ -1,12 +1,15 @@
-import cv2, time
+import cv2, time, json, argparse
 from ultralytics import YOLO
 from roi import ROI
-from vilt import ViLTPAR
+from par import ViLTPAR
 from PIL import Image
 
 
-def load_model(model_path):
-    return YOLO(model_path)
+def load_yolo(yolo_model_path):
+    return YOLO(yolo_model_path)
+
+def load_vilt(vilt_model_path):
+    return ViLTPAR(vilt_model_path)
 
 def open_video(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -17,7 +20,7 @@ def open_video(video_path):
 
 
 
-def process_frames(model, cap, rois, tracking_data, fps):
+def process_frames(yolo_model, vilt_model, cap, rois, tracking_data, fps):
     """
     Process frames from the video, update tracking data, and display the annotated frames.
 
@@ -30,9 +33,7 @@ def process_frames(model, cap, rois, tracking_data, fps):
     Returns:
     - None
     """
-    vilt = ViLTPAR()
-
-    frames_to_wait = fps
+    frames_to_wait = fps * 1.3
     frame_counter = frames_to_wait + 1
 
     while True:
@@ -41,7 +42,7 @@ def process_frames(model, cap, rois, tracking_data, fps):
         if not success:
             break  # Break the loop if no more frames
 
-        results = model.track(frame, persist=True, classes=0)
+        results = yolo_model.track(frame, persist=True, classes=0, verbose=False)
 
         # Update dwell time in ROIs and number of passages
         bbinfo = calculate_bbox_info(results)
@@ -53,7 +54,7 @@ def process_frames(model, cap, rois, tracking_data, fps):
             flag_par = False
             frame_counter += 1
 
-        update_data(frame, bbinfo, tracking_data, rois, vilt, flag_par)
+        update_data(frame, bbinfo, tracking_data, rois, vilt_model, flag_par)
 
         # Display the annotated frame with bounding boxes and ROIs
         annotated_frame = plot_bboxes(bbinfo, tracking_data, frame)
@@ -86,22 +87,8 @@ def update_data(frame, bbinfo, tracking_data, rois, vilt, flag_par):
 
         is_in_roi1, is_in_roi2 = rois.point_in_rois((centers[0], centers[1]))
 
-        # ROIs
-        if obj_id in tracking_data:
-            if flag_par:
-                cropped_frame = crop_objects(frame, angles)
-                vilt.extract_attributes(Image.fromarray(cropped_frame))
-                tracking_data[obj_id]['gender'] = vilt.get_results()[0]
-                tracking_data[obj_id]['hat'] = vilt.get_results()[1]
-                tracking_data[obj_id]['bag'] = vilt.get_results()[2]
-                tracking_data[obj_id]['upper_color'] = vilt.get_results()[3]
-                tracking_data[obj_id]['lower_color'] = vilt.get_results()[4]
-                print("ORa faccio par")
-            if is_in_roi1:
-                update_dict(tracking_data, obj_id, "roi1")
-            elif is_in_roi2:
-                update_dict(tracking_data, obj_id, "roi2")
-        else: 
+        # ROIs            
+        if obj_id not in tracking_data: 
             # Initialize tracking data for the object ID
             tracking_data[obj_id] = {
                 "gender": None,
@@ -116,6 +103,20 @@ def update_data(frame, bbinfo, tracking_data, rois, vilt, flag_par):
                 "roi2_persistence_time": 0,
                 "roi2_flag": False
             }
+        
+        if flag_par:
+            cropped_frame = crop_objects(frame, angles)
+            attributes = vilt.extract_attributes(Image.fromarray(cropped_frame))
+
+            tracking_data[obj_id]['gender'] = attributes[0]
+            tracking_data[obj_id]['hat'] = attributes[1]
+            tracking_data[obj_id]['bag'] = attributes[2]
+            tracking_data[obj_id]['upper_color'] = attributes[3]
+            tracking_data[obj_id]['lower_color'] = attributes[4]
+        if is_in_roi1:
+            update_dict(tracking_data, obj_id, "roi1")
+        elif is_in_roi2:
+            update_dict(tracking_data, obj_id, "roi2")
 
 def update_dict(tracking_data, obj_id, roi):
     """
@@ -137,36 +138,36 @@ def update_dict(tracking_data, obj_id, roi):
 
 
 
-def print_tracking_statistics(tracking_data, fps):
-    """
-    Print tracking statistics for each object in the tracking data.
+# def print_tracking_statistics(tracking_data, fps):
+#     """
+#     Print tracking statistics for each object in the tracking data.
 
-    Parameters:
-    - tracking_data: Dictionary containing tracking data.
-    - fps: Frames per second of the video.
-    """
-    for obj_id, data in tracking_data.items():
-        gender = data.get("gender", 0)
-        hat = data.get("hat", 0)
-        bag = data.get("bag", 0)
-        upper_color = data.get("upper_color", 0)
-        lower_color = data.get("lower_color", 0)
-        roi1_passages = data.get("roi1_passages", 0)
-        roi2_passages = data.get("roi2_passages", 0)
-        roi1_persistence_time = data.get("roi1_persistence_time", 0) / fps
-        roi2_persistence_time = data.get("roi2_persistence_time", 0) / fps
+#     Parameters:
+#     - tracking_data: Dictionary containing tracking data.
+#     - fps: Frames per second of the video.
+#     """
+#     for obj_id, data in tracking_data.items():
+#         gender = data.get("gender", 0)
+#         hat = data.get("hat", 0)
+#         bag = data.get("bag", 0)
+#         upper_color = data.get("upper_color", 0)
+#         lower_color = data.get("lower_color", 0)
+#         roi1_passages = data.get("roi1_passages", 0)
+#         roi2_passages = data.get("roi2_passages", 0)
+#         roi1_persistence_time = data.get("roi1_persistence_time", 0) / fps
+#         roi2_persistence_time = data.get("roi2_persistence_time", 0) / fps
 
-        print(f"Object ID {obj_id}:")
-        print(f"\tgender: {gender}")
-        print(f"\that: {hat}")
-        print(f"\tbag: {bag}")
-        print(f"\tupper_color: {upper_color}")
-        print(f"\tlower_color: {lower_color}")
-        print(f"\tROI1 Passages: {roi1_passages}")
-        print(f"\tROI2 Passages: {roi2_passages}")
-        print(f"\tROI1 Persistence Time: {roi1_persistence_time:.2f} seconds")
-        print(f"\tROI2 Persistence Time: {roi2_persistence_time:.2f} seconds")
-        print()
+#         print(f"Object ID {obj_id}:")
+#         print(f"\tgender: {gender}")
+#         print(f"\that: {hat}")
+#         print(f"\tbag: {bag}")
+#         print(f"\tupper_color: {upper_color}")
+#         print(f"\tlower_color: {lower_color}")
+#         print(f"\tROI1 Passages: {roi1_passages}")
+#         print(f"\tROI2 Passages: {roi2_passages}")
+#         print(f"\tROI1 Persistence Time: {roi1_persistence_time:.2f} seconds")
+#         print(f"\tROI2 Persistence Time: {roi2_persistence_time:.2f} seconds")
+#         print()
 
 
 
@@ -260,7 +261,7 @@ def crop_objects(frame, angles):
 
     return cropped_image
     
-def save_tracking_statistics(tracking_data, output_file):
+def save_tracking_statistics(tracking_data, output_file, fps):
     """
     Save tracking statistics for each object in the tracking data to a JSON file.
 
@@ -272,16 +273,16 @@ def save_tracking_statistics(tracking_data, output_file):
 
     for obj_id, data in tracking_data.items():
         entry = {
-            "id": obj_id,
+            "id": int(obj_id.split('_')[1]),
             "gender": data.get("gender", "unknown"),
             "hat": data.get("hat", False),
             "bag": data.get("bag", False),
             "upper_color": data.get("upper_color", "unknown"),
             "lower_color": data.get("lower_color", "unknown"),
             "roi1_passages": data.get("roi1_passages", 0),
-            "roi1_persistence_time": data.get("roi1_persistence_time", 0) / fps,
+            "roi1_persistence_time": round(data.get("roi1_persistence_time", 0) / fps, 2),
             "roi2_passages": data.get("roi2_passages", 0),
-            "roi2_persistence_time": data.get("roi2_persistence_time", 0) / fps
+            "roi2_persistence_time": round(data.get("roi2_persistence_time", 0) / fps, 2)
         }
         output_list.append(entry)
 
@@ -291,16 +292,27 @@ def save_tracking_statistics(tracking_data, output_file):
         json.dump(output_data, json_file, indent=2)
 
 def main():
+
+    parser = argparse.ArgumentParser(description='Process video frames with YOLO and ViLT models.')
+    parser.add_argument('--video', type=str, required=True, help='Path to the input video file (mp4).')
+    parser.add_argument('--configuration', type=str, required=True, help='Path to the ROI configuration file (txt).')
+    parser.add_argument('--results', type=str, required=True, help='Path to the output JSON format file (txt).')
+
+    args = parser.parse_args()
+
     # Load a model
-    model_path = 'yolov8n.pt'
-    model = load_model(model_path)
+    yolo_model_path = 'yolov8n.pt'
+    yolo_model = load_yolo(yolo_model_path)
+
+    vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
+    vilt_model = load_vilt(vilt_model_path)
 
     # Open the video file
-    video_path = "trimmed_prova.mp4"
+    video_path = args.video
     cap = open_video(video_path)
 
     # Create an ROI manager and read ROIs from the JSON file
-    roi_manager = ROI('config.txt', video_path)
+    roi_manager = ROI(args.configuration, video_path)
     
     tracking_data = {}
 
@@ -308,9 +320,9 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS)
 
     # Process frames
-    process_frames(model, cap, roi_manager, tracking_data, fps)
+    process_frames(yolo_model, vilt_model, cap, roi_manager, tracking_data, fps)
 
-    print_tracking_statistics(tracking_data, fps)
+    save_tracking_statistics(tracking_data, args.results, fps)
 
 if __name__ == "__main__":
     main()
