@@ -17,9 +17,9 @@ def open_video(video_path):
 
 
 
-def process_frame(model, cap, rois, tracking_data, fps):
+def process_frames(model, cap, rois, tracking_data, fps):
     """
-    Process a frame from the video, update tracking data, and display the annotated frame.
+    Process frames from the video, update tracking data, and display the annotated frames.
 
     Parameters:
     - model (YOLO): YOLO model for object detection and tracking.
@@ -28,14 +28,19 @@ def process_frame(model, cap, rois, tracking_data, fps):
     - tracking_data (dict): Dictionary to store tracking data.
 
     Returns:
-    - bool: True if the frame is successfully processed, False otherwise.
+    - None
     """
-    success, frame = cap.read()
     vilt = ViLTPAR()
-    frames_to_wait = int(round(fps / 2))
-    frame_counter = frames_to_wait
 
-    if success:
+    frames_to_wait = fps
+    frame_counter = frames_to_wait + 1
+
+    while True:
+        success, frame = cap.read()
+
+        if not success:
+            break  # Break the loop if no more frames
+
         results = model.track(frame, persist=True, classes=0)
 
         # Update dwell time in ROIs and number of passages
@@ -51,12 +56,17 @@ def process_frame(model, cap, rois, tracking_data, fps):
         update_data(frame, bbinfo, tracking_data, rois, vilt, flag_par)
 
         # Display the annotated frame with bounding boxes and ROIs
-        annotated_frame = plot_bboxes(bbinfo, tracking_data, frame) 
+        annotated_frame = plot_bboxes(bbinfo, tracking_data, frame)
         rois.add_roi_to_image(annotated_frame)
         cv2.imshow("YOLOv8 Tracking", annotated_frame)
-        return True
-    else:
-        return False
+
+        # Break the loop if 'q' is pressed
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
+    # Release the video capture object and close the display window
+    cap.release()
+    cv2.destroyAllWindows()
 
 def update_data(frame, bbinfo, tracking_data, rois, vilt, flag_par):
     """
@@ -81,13 +91,12 @@ def update_data(frame, bbinfo, tracking_data, rois, vilt, flag_par):
             if flag_par:
                 cropped_frame = crop_objects(frame, angles)
                 vilt.extract_attributes(Image.fromarray(cropped_frame))
-
                 tracking_data[obj_id]['gender'] = vilt.get_results()[0]
                 tracking_data[obj_id]['hat'] = vilt.get_results()[1]
                 tracking_data[obj_id]['bag'] = vilt.get_results()[2]
                 tracking_data[obj_id]['upper_color'] = vilt.get_results()[3]
                 tracking_data[obj_id]['lower_color'] = vilt.get_results()[4]
-
+                print("ORa faccio par")
             if is_in_roi1:
                 update_dict(tracking_data, obj_id, "roi1")
             elif is_in_roi2:
@@ -262,24 +271,17 @@ def main():
     cap = open_video(video_path)
 
     # Create an ROI manager and read ROIs from the JSON file
-    roi_manager = ROI('config.txt',video_path)
-
+    roi_manager = ROI('config.txt', video_path)
+    
     tracking_data = {}
 
     # Get video fps
     fps = cap.get(cv2.CAP_PROP_FPS)
 
-    # Loop through the video frames
-    while process_frame(model, cap, roi_manager, tracking_data, fps):
-        # Break the loop if 'q' is pressed
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-    
-    print_tracking_statistics(tracking_data, fps)
+    # Process frames
+    process_frames(model, cap, roi_manager, tracking_data, fps)
 
-    # Rilascia l'oggetto di acquisizione video e chiudi la finestra di visualizzazione
-    cap.release()
-    cv2.destroyAllWindows()
+    print_tracking_statistics(tracking_data, fps)
 
 if __name__ == "__main__":
     main()
