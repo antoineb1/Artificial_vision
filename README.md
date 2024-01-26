@@ -4,7 +4,7 @@
 
   # Github repository
   Here's the Github repository link, where you can find both code for RASA and ROS:
-      https://github.com/antoineb1/Artificial_vision
+    https://github.com/antoineb1/Artificial_vision
 
   # Credits
   The project has been designed and realized by Artificial Vision group 06
