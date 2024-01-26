@@ -19,6 +19,13 @@ class ViLTPAR:
         self.upper_clothing_question = "What color is the upper clothing?"
         self.lower_clothing_question = "What color is the lower clothing?"
 
+    def to(self, mode):
+        if mode == "cuda":
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            self.model = self.model.to(device)
+        else:
+            self.model = self.model.to("cpu")
+
     def extract_attributes(self, image):
         """
         Extracts attributes (gender, hat, bag, upper clothing color, lower clothing color) from an image.
@@ -35,11 +42,11 @@ class ViLTPAR:
         try:
             # Process each predefined question and obtain answers
             questions = [
-                self.processor(image, self.gender_question, return_tensors='pt'),  # gender
-                self.processor(image, self.hat_question, return_tensors='pt'),     # hat
-                self.processor(image, self.bag_question, return_tensors='pt'),     # bag
-                self.processor(image, self.upper_clothing_question, return_tensors='pt'),  # upper color
-                self.processor(image, self.lower_clothing_question, return_tensors='pt')  # lower color
+                self.processor(image, self.gender_question, return_tensors='pt').to(self.model.device),  # gender
+                self.processor(image, self.hat_question, return_tensors='pt').to(self.model.device),     # hat
+                self.processor(image, self.bag_question, return_tensors='pt').to(self.model.device),     # bag
+                self.processor(image, self.upper_clothing_question, return_tensors='pt').to(self.model.device),  # upper color
+                self.processor(image, self.lower_clothing_question, return_tensors='pt').to(self.model.device)  # lower color
             ]
 
             answers.append(questions)
