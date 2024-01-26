@@ -1,4 +1,5 @@
 from transformers import ViltProcessor, ViltForQuestionAnswering
+import torch
 
 class ViLTPAR:
     def __init__(self, vilt_model):
