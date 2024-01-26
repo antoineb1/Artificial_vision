@@ -1,7 +1,7 @@
 import cv2, time, json, argparse
 from ultralytics import YOLO
 from roi import ROI
-from par import ViLTPAR
+from vilt import ViLTPAR
 from PIL import Image
 from MTNN import MultiTaskPAR
 
@@ -361,7 +361,7 @@ def save_tracking_statistics(tracking_data, output_file, fps):
 #     args = parser.parse_args()
 
 #     # Load YOLO model
-#     yolo_model_path = 'yolov8n.pt'
+#     yolo_model_path = 'yolo_models/yolov8s.pt'
 #     yolo_model = load_yolo(yolo_model_path)
 #     yolo_model.to("cuda")
 
@@ -371,7 +371,7 @@ def save_tracking_statistics(tracking_data, output_file, fps):
 #         # Load ViLT model
 #         vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
 #         vilt_model = load_vilt(vilt_model_path)
-#         vilt_model.to("cuda)
+#         vilt_model.to("cuda")
 #         par_model = vilt_model
 #     else:
 #         # Load MTNN model
@@ -415,8 +415,9 @@ def process_videos_in_folder(source_folder, destination_folder):
         print(f"Processing video: {video_file}")
 
         # Load YOLO model
-        yolo_model_path = 'yolov8n.pt'
+        yolo_model_path = 'yolo_models/yolov8s.pt'
         yolo_model = load_yolo(yolo_model_path)
+        yolo_model.to("cuda")
 
         # Choose between ViLT and MTNN model for attribute extraction
         vilt = True
@@ -424,11 +425,13 @@ def process_videos_in_folder(source_folder, destination_folder):
             # Load ViLT model
             vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
             vilt_model = load_vilt(vilt_model_path)
+            vilt_model.to("cuda")
             par_model = vilt_model
         else:
             # Load MTNN model
             mtnn_model_path = 'mtnn_best_model.pth'
             mtnn_model = load_mtnn(mtnn_model_path)
+            mtnn_model.to("cuda")
             par_model = mtnn_model
 
         # Open the video file
@@ -455,8 +458,8 @@ def process_videos_in_folder(source_folder, destination_folder):
 
 if __name__ == "__main__":
     # Specify the source and destination folders
-    source_folder_path = 'C:\\Users\\marco\\OneDrive\\Desktop\\Artificial Vision\\Project\\Test_Data'
-    destination_folder_path = 'C:\\Users\\marco\\OneDrive\\Desktop\\Artificial Vision\\Project\\Test_Data\\GT'
+    source_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\Test_Data'
+    destination_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\Test_Data\\GT'
 
     # Process videos in the source folder and save results in the destination folder
     process_videos_in_folder(source_folder_path, destination_folder_path)
