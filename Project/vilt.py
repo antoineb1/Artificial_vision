@@ -21,11 +21,18 @@ class ViLTPAR:
         self.lower_clothing_question = "What color is the lower clothing?"
 
     def to(self, mode):
+        """
+        Switch to CUDA execution if available.
+
+        Parameters:
+        - mode: execution mode (CUDA or CPU)
+        """
         if mode == "cuda":
             device = "cuda:0" if torch.cuda.is_available() else "cpu"
             self.model = self.model.to(device)
         else:
             self.model = self.model.to("cpu")
+        return
 
     def extract_attributes(self, image):
         """

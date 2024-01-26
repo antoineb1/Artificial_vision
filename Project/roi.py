@@ -56,7 +56,7 @@ class ROI:
             x_abs, y_abs, width_abs, height_abs = roi_info["x_abs"], roi_info["y_abs"], roi_info["width_abs"], roi_info["height_abs"]
 
             # Green color for the first ROI, blue for the second
-            color = (0, 255, 0) if i == 0 else (255, 0, 0)
+            color = (0, 180, 0) if i == 0 else (180, 0, 0)
 
             # Draw rectangle
             cv2.rectangle(image, (x_abs, y_abs), (x_abs + width_abs, y_abs + height_abs), color, 2)

@@ -87,11 +87,18 @@ class MultiTaskPAR:
         self.model.load_state_dict(torch.load(weights_path))
 
     def to(self, mode):
+        """
+        Switch to CUDA execution if available.
+
+        Parameters:
+        - mode: execution mode (CUDA or CPU)
+        """
         if mode == "cuda":
             device = "cuda:0" if torch.cuda.is_available() else "cpu"
             self.model = self.model.to(device)
         else:
             self.model = self.model.to("cpu")
+        return
 
     def extract_attributes(self, image):
         """
@@ -103,7 +110,7 @@ class MultiTaskPAR:
         Returns:
             tuple: Extracted attributes - gender, hat, bag, top color, bottom color.
         """
-        input_tensor = self.image_preprocessing(image).unsqueeze(0).to("cuda")
+        input_tensor = self.image_preprocessing(image).unsqueeze(0).to("cuda") if torch.cuda.is_available() else self.image_preprocessing(image).unsqueeze(0).to("cpu")
 
         with torch.no_grad():
             outputs = self.model(input_tensor)

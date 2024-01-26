@@ -109,7 +109,7 @@ def process_frames(yolo_model, par_model, cap, rois, tracking_data, fps):
         # Display the annotated frame with bounding boxes and ROIs
         annotated_frame = plot_bboxes(bbinfo, tracking_data, frame)
         rois.add_roi_to_image(annotated_frame)
-        cv2.imshow("YOLOv8 Tracking", annotated_frame)
+        cv2.imshow("YOLOv8 Tracking + PAR", annotated_frame)
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -270,27 +270,28 @@ def plot_bboxes(bbinfo, tracking_data, frame):
         tracking_info = tracking_data.get(obj_id, {})
 
         # Draw the bounding box in red
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 200), 2)
 
         # Add label with ID above the box (ID as an integer)
+        id = str(obj_id.split('_')[0]).upper() + str(obj_id.split('_')[1])
         id_label_position = (x1, y1 - 10)
-        cv2.putText(frame, f'{obj_id}', id_label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+        cv2.putText(frame, id, id_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 0, 0), 1)
 
         # Add label with PAR attributes on the right of the box
         gender_label_position = (x2 + 2, y1 + 15)
-        cv2.putText(frame, f"Gender: {tracking_info.get('gender', 0)}", gender_label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Gender: {tracking_info.get('gender', 0)}", gender_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
 
         hat_label_position = (x2 + 2, y1 + 30)
-        cv2.putText(frame, f"Hat: {tracking_info.get('hat', 0)}", hat_label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Hat: {tracking_info.get('hat', 0)}", hat_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
 
         bag_label_position = (x2 + 2, y1 + 45)
-        cv2.putText(frame, f"Bag: {tracking_info.get('bag', 0)}", bag_label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Bag: {tracking_info.get('bag', 0)}", bag_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
 
         upcol_label_position = (x2 + 2, y1 + 60)
-        cv2.putText(frame, f"Upper Color: {tracking_info.get('upper_color', 0)}", upcol_label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Upper Color: {tracking_info.get('upper_color', 0)}", upcol_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
 
         lowcol_label_position = (x2 + 2, y1 + 75)
-        cv2.putText(frame, f"Lower Color: {tracking_info.get('lower_color', 0)}", lowcol_label_position, cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Lower Color: {tracking_info.get('lower_color', 0)}", lowcol_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
 
     return frame
 
@@ -310,6 +311,8 @@ def crop_objects(frame, angles):
 
     # Crop the section related to the bounded box
     cropped_image = frame[y1:y2, x1:x2].copy()
+    # cropped_image = cv2.fastNlMeansDenoisingColored(cropped_image, None, h=3, hColor=5, templateWindowSize=8, searchWindowSize=8)
+    # cv2.imshow(f"cropped {id}", cropped_image)
 
     # Convert the cropped array to an Image object
     cropped_image = Image.fromarray(cropped_image)
@@ -420,7 +423,7 @@ def process_videos_in_folder(source_folder, destination_folder):
         yolo_model.to("cuda")
 
         # Choose between ViLT and MTNN model for attribute extraction
-        vilt = True
+        vilt = False
         if vilt:
             # Load ViLT model
             vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
