@@ -363,6 +363,7 @@ def save_tracking_statistics(tracking_data, output_file, fps):
 #     # Load YOLO model
 #     yolo_model_path = 'yolov8n.pt'
 #     yolo_model = load_yolo(yolo_model_path)
+#     yolo_model.to("cuda")
 
 #     # variable to choose which method to use for the par
 #     vilt = True
@@ -370,6 +371,7 @@ def save_tracking_statistics(tracking_data, output_file, fps):
 #         # Load ViLT model
 #         vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
 #         vilt_model = load_vilt(vilt_model_path)
+#         vilt_model.to("cuda)
 #         par_model = vilt_model
 #     else:
 #         # Load MTNN model
