@@ -303,9 +303,11 @@ def main():
     # Load a model
     yolo_model_path = 'yolov8n.pt'
     yolo_model = load_yolo(yolo_model_path)
+    yolo_model.to("cuda")
 
     vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
     vilt_model = load_vilt(vilt_model_path)
+    vilt_model.to("cuda")
 
     # Open the video file
     video_path = args.video

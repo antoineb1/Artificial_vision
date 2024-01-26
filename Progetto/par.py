@@ -1,5 +1,5 @@
 from transformers import ViltProcessor, ViltForQuestionAnswering
-import requests, os, time, cv2
+import requests, os, time, cv2, torch
 from PIL import Image
 
 class ViLTPAR:
@@ -16,6 +16,13 @@ class ViLTPAR:
 
         return
 
+    def to(self, mode):
+        if mode == "cuda":
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            self.model = self.model.to(device)
+        else:
+            self.model = self.model.to("cpu")
+
     def extract_attributes(self, image):
 
         answers = []
@@ -23,11 +30,11 @@ class ViLTPAR:
 
         try:
             questions = [
-                self.processor(image, self.gender_question, return_tensors='pt'), # gender
-                self.processor(image, self.hat_question, return_tensors='pt'), # hat
-                self.processor(image, self.bag_question, return_tensors='pt'), # bag
-                self.processor(image, self.upper_clothing_question, return_tensors='pt'), # upper color
-                self.processor(image, self.lower_clothing_question, return_tensors='pt') # lower color
+                self.processor(image, self.gender_question, return_tensors='pt').to(self.model.device), # gender
+                self.processor(image, self.hat_question, return_tensors='pt').to(self.model.device), # hat
+                self.processor(image, self.bag_question, return_tensors='pt').to(self.model.device), # bag
+                self.processor(image, self.upper_clothing_question, return_tensors='pt').to(self.model.device), # upper color
+                self.processor(image, self.lower_clothing_question, return_tensors='pt').to(self.model.device) # lower color
             ]
             
             answers.append(questions)
