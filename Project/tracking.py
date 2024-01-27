@@ -81,6 +81,9 @@ def process_frames(yolo_model, par_model, cap, rois, tracking_data, fps):
     frames_to_wait = fps * 1.3
     frame_counter = frames_to_wait
 
+    # Adapting OpenCV video window
+    # cv2.namedWindow("YOLOv8 Tracking + PAR", cv2.WINDOW_KEEPRATIO)
+
     while True:
         # Read the next frame from the video
         success, frame = cap.read()
@@ -90,7 +93,7 @@ def process_frames(yolo_model, par_model, cap, rois, tracking_data, fps):
             break
 
         # Use YOLO model for object detection and tracking
-        results = yolo_model.track(frame, persist=True, classes=0, verbose=False)
+        results = yolo_model.track(frame, persist=True, classes=0, verbose=False, tracker="yolo_trackers/custom.yaml")
 
         # Compute bounding box informations
         bbinfo = calculate_bbox_info(results)
@@ -418,7 +421,7 @@ def process_videos_in_folder(source_folder, destination_folder):
         print(f"Processing video: {video_file}")
 
         # Load YOLO model
-        yolo_model_path = 'yolo_models/yolov8s.pt'
+        yolo_model_path = 'yolo_models/yolov8n.pt'
         yolo_model = load_yolo(yolo_model_path)
         yolo_model.to("cuda")
 
@@ -432,7 +435,7 @@ def process_videos_in_folder(source_folder, destination_folder):
             par_model = vilt_model
         else:
             # Load MTNN model
-            mtnn_model_path = 'mtnn_best_model.pth'
+            mtnn_model_path = 'multitask_model/mtnn_best_model.pth'
             mtnn_model = load_mtnn(mtnn_model_path)
             mtnn_model.to("cuda")
             par_model = mtnn_model
@@ -461,8 +464,8 @@ def process_videos_in_folder(source_folder, destination_folder):
 
 if __name__ == "__main__":
     # Specify the source and destination folders
-    source_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\Test_Data'
-    destination_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\Test_Data\\GT'
+    source_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\test_data'
+    destination_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\test_data\\GT'
 
     # Process videos in the source folder and save results in the destination folder
     process_videos_in_folder(source_folder_path, destination_folder_path)
