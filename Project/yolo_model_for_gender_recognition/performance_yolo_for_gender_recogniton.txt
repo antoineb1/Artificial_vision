@@ -1,0 +1,1 @@
+This model achieves an accuracy of 65%. It is not implemented in the script for this project, so you will need to integrate it.
