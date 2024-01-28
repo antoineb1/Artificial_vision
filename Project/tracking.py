@@ -1,4 +1,4 @@
-import cv2, time, json, argparse
+import cv2, time, json, argparse, torch
 from ultralytics import YOLO
 from roi import ROI
 from vilt import ViLTPAR
@@ -43,8 +43,6 @@ def load_mtnn(mtnn_model_path):
     """
     return MultiTaskPAR(mtnn_model_path)
 
-
-
 def open_video(video_path):
     """
     Open a video file using OpenCV.
@@ -62,7 +60,7 @@ def open_video(video_path):
     return cap
 
 
-def process_frames(yolo_model, par_model, cap, rois, tracking_data, fps):
+def process_frames(yolo_model, par_model, cap, rois, tracking_data, fps, mapper, id_counterer):
     """
     Process frames from the video, update tracking data, and display the annotated frames.
 
@@ -73,12 +71,14 @@ def process_frames(yolo_model, par_model, cap, rois, tracking_data, fps):
     - rois (ROI): Instance of the ROI class containing region of interest information.
     - tracking_data (dict): Dictionary to store tracking data.
     - fps (int): Frames per second of the video.
+    - mapper: data structure used to map used IDs
+    - id_counterer: counter of IDs
 
     Returns:
     - None
     """
     # Number of frames to wait before updating tracking information
-    frames_to_wait = fps * 1.3
+    frames_to_wait = fps * 2
     frame_counter = frames_to_wait
 
     # Adapting OpenCV video window
@@ -96,7 +96,7 @@ def process_frames(yolo_model, par_model, cap, rois, tracking_data, fps):
         results = yolo_model.track(frame, persist=True, classes=0, verbose=False, tracker="yolo_trackers/custom.yaml")
 
         # Compute bounding box informations
-        bbinfo = calculate_bbox_info(results)
+        bbinfo,id_counterer = calculate_bbox_info(results, mapper, id_counterer)
 
         # Decide whether to perform attribute extraction in the current frame
         if frame_counter >= frames_to_wait:
@@ -110,7 +110,7 @@ def process_frames(yolo_model, par_model, cap, rois, tracking_data, fps):
         update_data(frame, bbinfo, tracking_data, rois, par_model, flag_par)
 
         # Display the annotated frame with bounding boxes and ROIs
-        annotated_frame = plot_bboxes(bbinfo, tracking_data, frame)
+        annotated_frame = plot_bboxes(bbinfo, tracking_data, frame, mapper)
         rois.add_roi_to_image(annotated_frame)
         cv2.imshow("YOLOv8 Tracking + PAR", annotated_frame)
 
@@ -207,15 +207,18 @@ def update_roi_statistic(tracking_data, obj_id, roi):
 
 
 
-def calculate_bbox_info(results):
+def calculate_bbox_info(results, mapper, id_counter):
     """
     Calculate the information of bounding boxes given a results object.
 
     Parameters:
     - results (ultralytics.YOLO): YOLO results object containing information about detected objects.
+    - mapper: data structure used to map used IDs
+    - id_counterer: counter of IDs
 
     Returns:
     - list: List of tuples, each containing the track ID and coordinates of the center and the corners of a bounding box ("id_x", (cx, cy), (x1, y1, x2, y2)).
+    - id_counter: final sequential ID number
     """
     bbinfo = []
 
@@ -240,16 +243,20 @@ def calculate_bbox_info(results):
             cy = int((y1 + y2) / 2)
 
             # Convert track_id to a string in the format "id_x"
-            track_id_str = f"id_{int(track_id)}"
+            track_id_str = f"ID {int(track_id)}"
 
+            # Aggiornamento counter sequenziale
+            if track_id_str not in mapper:
+                mapper[track_id_str] =  id_counter
+                id_counter += 1 
             # Append a tuple with track ID, bb center, and coordinates to the bbinfo list
             bbinfo.append((track_id_str, (cx, cy), (x1, y1, x2, y2)))
 
-    return bbinfo
+    return bbinfo, id_counter
 
 
 
-def plot_bboxes(bbinfo, tracking_data, frame):
+def plot_bboxes(bbinfo, tracking_data, frame, mapper):
     """
     Plot bounding boxes and associated information on the input frame.
 
@@ -257,6 +264,7 @@ def plot_bboxes(bbinfo, tracking_data, frame):
     - bbinfo (list): List containing information about bounding boxes.
     - tracking_data (dict): Dictionary containing tracking information.
     - frame (numpy.ndarray): Input frame on which bounding boxes will be drawn.
+    - mapper: data structure used to map used IDs
 
     Returns:
     - numpy.ndarray: Frame with drawn bounding boxes and labels.
@@ -273,28 +281,28 @@ def plot_bboxes(bbinfo, tracking_data, frame):
         tracking_info = tracking_data.get(obj_id, {})
 
         # Draw the bounding box in red
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 200), 2)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), 2)
 
         # Add label with ID above the box (ID as an integer)
-        id = str(obj_id.split('_')[0]).upper() + str(obj_id.split('_')[1])
+        id = "id_" + str(mapper[obj_id])
         id_label_position = (x1, y1 - 10)
         cv2.putText(frame, id, id_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 0, 0), 1)
 
         # Add label with PAR attributes on the right of the box
         gender_label_position = (x2 + 2, y1 + 15)
-        cv2.putText(frame, f"Gender: {tracking_info.get('gender', 0)}", gender_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Gender: {tracking_info.get('gender', 0)}", gender_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (255, 255, 255), 1)
 
         hat_label_position = (x2 + 2, y1 + 30)
-        cv2.putText(frame, f"Hat: {tracking_info.get('hat', 0)}", hat_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Hat: {tracking_info.get('hat', 0)}", hat_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (255, 255, 255), 1)
 
         bag_label_position = (x2 + 2, y1 + 45)
-        cv2.putText(frame, f"Bag: {tracking_info.get('bag', 0)}", bag_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Bag: {tracking_info.get('bag', 0)}", bag_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (255, 255, 255), 1)
 
         upcol_label_position = (x2 + 2, y1 + 60)
-        cv2.putText(frame, f"Upper Color: {tracking_info.get('upper_color', 0)}", upcol_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Upper Color: {tracking_info.get('upper_color', 0)}", upcol_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (255, 255, 255), 1)
 
         lowcol_label_position = (x2 + 2, y1 + 75)
-        cv2.putText(frame, f"Lower Color: {tracking_info.get('lower_color', 0)}", lowcol_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (0, 0, 0), 1)
+        cv2.putText(frame, f"Lower Color: {tracking_info.get('lower_color', 0)}", lowcol_label_position, cv2.FONT_HERSHEY_DUPLEX, 0.4, (255, 255, 255), 1)
 
     return frame
 
@@ -314,8 +322,6 @@ def crop_objects(frame, angles):
 
     # Crop the section related to the bounded box
     cropped_image = frame[y1:y2, x1:x2].copy()
-    # cropped_image = cv2.fastNlMeansDenoisingColored(cropped_image, None, h=3, hColor=5, templateWindowSize=8, searchWindowSize=8)
-    # cv2.imshow(f"cropped {id}", cropped_image)
 
     # Convert the cropped array to an Image object
     cropped_image = Image.fromarray(cropped_image)
@@ -323,7 +329,7 @@ def crop_objects(frame, angles):
     return cropped_image
 
 
-def save_tracking_statistics(tracking_data, output_file, fps):
+def save_tracking_statistics(tracking_data, output_file, fps, mapper):
     """
     Save tracking statistics for each object in the tracking data to a JSON file.
 
@@ -331,12 +337,13 @@ def save_tracking_statistics(tracking_data, output_file, fps):
     - tracking_data (dict): Dictionary containing tracking data.
     - output_file (str): The name of the output JSON file.
     - fps (float): Frames per second of the video.
+    - mapper: data structure used to map used IDs
     """
     output_list = []
 
     for obj_id, data in tracking_data.items():
         entry = {
-            "id": int(obj_id.split('_')[1]),
+            "id": mapper[obj_id],
             "gender": data.get("gender", "unknown"),
             "hat": data.get("hat", False),
             "bag": data.get("bag", False),
@@ -355,118 +362,123 @@ def save_tracking_statistics(tracking_data, output_file, fps):
         json.dump(output_data, json_file, indent=2)
 
 
-# def main():
+def main():  
 
-#     # Create an argument parser with descriptions for command-line arguments
-#     parser = argparse.ArgumentParser(description='Process video frames with YOLO and ViLT models.')
-#     parser.add_argument('--video', type=str, required=True, help='Path to the input video file (mp4).')
-#     parser.add_argument('--configuration', type=str, required=True, help='Path to the ROI configuration file (txt).')
-#     parser.add_argument('--results', type=str, required=True, help='Path to the output JSON format file (txt).')
+    id_counter = 1
+    mapper = {}
 
-#     # Parse the command-line arguments
-#     args = parser.parse_args()
+    # Create an argument parser with descriptions for command-line arguments
+    parser = argparse.ArgumentParser(description='Process video frames with YOLO and ViLT models.')
+    parser.add_argument('--video', type=str, required=True, help='Path to the input video file (mp4).')
+    parser.add_argument('--configuration', type=str, required=True, help='Path to the ROI configuration file (txt).')
+    parser.add_argument('--results', type=str, required=True, help='Path to the output JSON format file (txt).')
 
-#     # Load YOLO model
-#     yolo_model_path = 'yolo_models/yolov8s.pt'
-#     yolo_model = load_yolo(yolo_model_path)
-#     yolo_model.to("cuda")
+    # Parse the command-line arguments
+    args = parser.parse_args()
 
-#     # variable to choose which method to use for the par
-#     vilt = True
-#     if vilt:
-#         # Load ViLT model
-#         vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
-#         vilt_model = load_vilt(vilt_model_path)
-#         vilt_model.to("cuda")
-#         par_model = vilt_model
-#     else:
-#         # Load MTNN model
-#         mtnn_model_path = 'mtnn_best_model.pth'
-#         mtnn_model = load_mtnn(mtnn_model_path)
-#         par_model = mtnn_model
+    # Load YOLO model
+    yolo_model_path = 'yolo_models/yolov8s.pt'
+    yolo_model = load_yolo(yolo_model_path)
+    yolo_model.to("cuda")
 
-
-#     # Open the video file
-#     video_path = args.video
-#     cap = open_video(video_path)
-
-#     # Create an ROI manager and read ROIs from the JSON file
-#     roi_manager = ROI(args.configuration, video_path)
-
-#     # Initialize tracking data dictionary
-#     tracking_data = {}
-
-#     # Get video fps
-#     fps = cap.get(cv2.CAP_PROP_FPS)
+    # variable to choose which method to use for the par
+    vilt = True
+    if vilt:
+        # Load ViLT model
+        vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
+        vilt_model = load_vilt(vilt_model_path)
+        vilt_model.to("cuda")
+        par_model = vilt_model
+    else:
+        # Load MTNN model
+        mtnn_model_path = 'multitask_model/mtnn_best_model.pth'
+        mtnn_model = load_mtnn(mtnn_model_path)
+        par_model = mtnn_model
 
 
-#     # Process frames using YOLO, and PAR model
-#     process_frames(yolo_model, par_model, cap, roi_manager, tracking_data, fps)
+    # Open the video file
+    video_path = args.video
+    cap = open_video(video_path)
 
-#     # Save tracking statistics to an output JSON file
-#     save_tracking_statistics(tracking_data, args.results, fps)
+    # Create an ROI manager and read ROIs from the JSON file
+    roi_manager = ROI(args.configuration, video_path)
 
-# if __name__ == "__main__":
-#     main()
+    # Initialize tracking data dictionary
+    tracking_data = {}
 
+    # Get video fps
+    fps = cap.get(cv2.CAP_PROP_FPS)
 
-def process_videos_in_folder(source_folder, destination_folder):
-    # List all video files in the given source folder
-    video_files = [f for f in os.listdir(source_folder) if f.endswith('.mp4')]
+    # Process frames using YOLO, and PAR model
+    process_frames(yolo_model, par_model, cap, roi_manager, tracking_data, fps, mapper, id_counter)
 
-    # Process each video in the source folder
-    for video_file in video_files:
-        video_path = os.path.join(source_folder, video_file)
-
-        print(f"Processing video: {video_file}")
-
-        # Load YOLO model
-        yolo_model_path = 'yolo_models/yolov8n.pt'
-        yolo_model = load_yolo(yolo_model_path)
-        yolo_model.to("cuda")
-
-        # Choose between ViLT and MTNN model for attribute extraction
-        vilt = False
-        if vilt:
-            # Load ViLT model
-            vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
-            vilt_model = load_vilt(vilt_model_path)
-            vilt_model.to("cuda")
-            par_model = vilt_model
-        else:
-            # Load MTNN model
-            mtnn_model_path = 'multitask_model/mtnn_best_model.pth'
-            mtnn_model = load_mtnn(mtnn_model_path)
-            mtnn_model.to("cuda")
-            par_model = mtnn_model
-
-        # Open the video file
-        cap = open_video(video_path)
-
-        # Create an ROI manager and read ROIs from the JSON file
-        roi_manager = ROI('config.txt', video_path)
-
-        # Initialize tracking data dictionary
-        tracking_data = {}
-
-        # Get video fps
-        fps = cap.get(cv2.CAP_PROP_FPS)
-
-        # Process frames using YOLO, and PAR model
-        process_frames(yolo_model, par_model, cap, roi_manager, tracking_data, fps)
-
-        # Save tracking statistics to a single output JSON file for each video
-        output_file = os.path.join(destination_folder, f'{video_file.split(".")[0]}_results.txt')
-        save_tracking_statistics(tracking_data, output_file, fps)
-
-        # Release the video capture object
-        cap.release()
+    # Save tracking statistics to an output JSON file
+    save_tracking_statistics(tracking_data, args.results, fps, mapper)
 
 if __name__ == "__main__":
-    # Specify the source and destination folders
-    source_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\test_data'
-    destination_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\test_data\\GT'
+    main()
 
-    # Process videos in the source folder and save results in the destination folder
-    process_videos_in_folder(source_folder_path, destination_folder_path)
 
+# def process_videos_in_folder(source_folder, destination_folder):
+
+#     id_counter = 1
+#     mapper = {}
+
+#     # List all video files in the given source folder
+#     video_files = [f for f in os.listdir(source_folder) if f.endswith('.mp4')]
+
+#     # Process each video in the source folder
+#     for video_file in video_files:
+#         video_path = os.path.join(source_folder, video_file)
+
+#         print(f"Processing video: {video_file}")
+
+#         # Load YOLO model
+#         yolo_model_path = 'yolo_models/yolov8s.pt'
+#         yolo_model = load_yolo(yolo_model_path)
+#         yolo_model.to("cuda") if torch.cuda.is_available() else yolo_model.to("cpu")
+
+#         # Choose between ViLT and MTNN model for attribute extraction
+#         vilt = False
+#         if vilt:
+#             # Load ViLT model
+#             vilt_model_path = 'dandelin/vilt-b32-finetuned-vqa'
+#             vilt_model = load_vilt(vilt_model_path)
+#             vilt_model.to("cuda")
+#             par_model = vilt_model
+#         else:
+#             # Load MTNN model
+#             mtnn_model_path = 'multitask_model/mtnn_best_model.pth'
+#             mtnn_model = load_mtnn(mtnn_model_path)
+#             mtnn_model.to("cuda")
+#             par_model = mtnn_model
+
+#         # Open the video file
+#         cap = open_video(video_path)
+
+#         # Create an ROI manager and read ROIs from the JSON file
+#         roi_manager = ROI('config.txt', video_path)
+
+#         # Initialize tracking data dictionary
+#         tracking_data = {}
+
+#         # Get video fps
+#         fps = cap.get(cv2.CAP_PROP_FPS)
+
+#         # Process frames using YOLO, and PAR model
+#         process_frames(yolo_model, par_model, cap, roi_manager, tracking_data, fps, mapper, id_counter)
+
+#         # Save tracking statistics to a single output JSON file for each video
+#         output_file = os.path.join(destination_folder, f'{video_file.split(".")[0]}_results.txt')
+#         save_tracking_statistics(tracking_data, output_file, fps, mapper)
+
+#         # Release the video capture object
+#         cap.release()
+
+# if __name__ == "__main__":
+#     # Specify the source and destination folders
+#     source_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\test_data'
+#     destination_folder_path = 'C:\\Users\\fsarn\\ArtificialVision\\Artificial_vision\\Project\\test_data\\GT'
+
+#     # Process videos in the source folder and save results in the destination folder
+#     process_videos_in_folder(source_folder_path, destination_folder_path)

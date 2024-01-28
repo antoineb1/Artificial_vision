@@ -15,10 +15,10 @@ class ViLTPAR:
 
         # Set predefined questions for each attribute
         self.gender_question = "What is the gender of the person?"
-        self.hat_question = "Is the person wearing a hat?"
-        self.bag_question = "Is the person carrying a bag or a backpack?"
-        self.upper_clothing_question = "What color is the upper clothing?"
-        self.lower_clothing_question = "What color is the lower clothing?"
+        self.hat_question = "Does the person have a hat?"
+        self.bag_question = "Does the person have a bag?"
+        self.upper_clothing_question = "What color are the upper clothes that the person is wearing?"
+        self.lower_clothing_question = "What color are the lower clothes that the person is wearing?"
 
     def to(self, mode):
         """
