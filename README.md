@@ -28,8 +28,6 @@
     - Martina Napoli - m.napoli81@studenti.unisa.it
     - Fabrizio Sarno - f.sarno14@studenti.unisa.it
 
-  - Data
-    For the Multi-Task model training, MIVIA 'PAR' dataset has been used.
+  - Data: For the Multi-Task model training, MIVIA 'PAR' dataset has been used.
 
-  - Institution
-    University of Salerno, DIEM, MIVIA
+  - Institution: University of Salerno, DIEM, MIVIA
