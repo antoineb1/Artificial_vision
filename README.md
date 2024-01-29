@@ -21,14 +21,14 @@ Here's the [Github repository link](https://github.com/antoineb1/Artificial_visi
 ## Credits
 The project has been designed and realized by Artificial Vision Group 06
 
-- Members and references:
+### Members and references:
   - Antoine Barbet - [a.barbet1@studenti.unisa.it](mailto:a.barbet1@studenti.unisa.it)
   - Marco Milone - [m.milone15@studenti.unisa.it](mailto:m.milone15@studenti.unisa.it)
   - Martina Napoli - [m.napoli81@studenti.unisa.it](mailto:m.napoli81@studenti.unisa.it)
   - Fabrizio Sarno - [f.sarno14@studenti.unisa.it](mailto:f.sarno14@studenti.unisa.it)
 
-- Data
+### Data
   For the Multi-Task model training, [MIVIA](https://mivia.unisa.it/) dataset has been used.
 
-- Institution
+### Institution
   [University of Salerno](https://web.unisa.it/en/university), DIEM, MIVIA
